@@ -1,0 +1,150 @@
+---
+title: "WGCNA Analysis Pipeline"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Introduction
+This R Markdown document provides an annotated workflow for performing Weighted Gene Co-expression Network Analysis (WGCNA), module–trait correlations, hub gene identification, and EWCE cell-type enrichment. .
+
+# Load Required Packages
+```{r}
+library(WGCNA)
+library(GO.db)
+library(Biobase)
+library(impute)
+library(preprocessCore)
+library(EWCE)
+library(ewceData)
+library(SingleCellExperiment)
+library(ggplot2)
+options(stringsAsFactors = FALSE)
+```
+
+# 1. Data Input and Preprocessing
+## Load expression matrix and trait data
+```{r}
+datExpr <- read.csv("expression_matrix.csv", row.names = 1)
+traitData <- read.csv("trait_data.csv", row.names = 1)
+```
+
+## Sample clustering to identify outliers
+```{r}
+sampleTree <- hclust(dist(datExpr), method = "average")
+plot(sampleTree, main = "Sample Clustering", xlab = "", sub = "")
+abline(h = 37000, col = "red")
+```
+
+## Remove outlier samples
+```{r}
+clust <- cutreeStatic(sampleTree, cutHeight = 37000, minSize = 10)
+keepSamples <- (clust == 1)
+datExpr <- datExpr[keepSamples, ]
+traitData <- traitData[rownames(datExpr), ]
+```
+
+# 2. Data Transformation & Filtering
+## Convert to numeric and log-transform
+```{r}
+datExpr <- as.data.frame(sapply(datExpr, as.numeric))
+datExpr <- log2(datExpr + 1)
+```
+
+## Filter lowly expressed genes
+```{r}
+mean_expression <- colMeans(datExpr)
+filtered_data <- datExpr[, mean_expression >= 1.5]
+```
+
+# 3. Soft-threshold Selection
+```{r}
+powers <- c(1:10, seq(12, 20, 2))
+sft <- pickSoftThreshold(filtered_data, powerVector = powers, verbose = 5)
+```
+
+# 4. Network Construction and Module Detection
+```{r}
+bwnet <- blockwiseModules(
+  filtered_data,
+  power = 12,
+  networkType = "signed",
+  minModuleSize = 200,
+  deepSplit = 2,
+  mergeCutHeight = 0.3,
+  numericLabels = TRUE,
+  saveTOMs = TRUE,
+  saveTOMFileBase = "TOM-blockwise",
+  verbose = 5
+)
+```
+
+# 5. Module–Trait Relationships
+```{r}
+moduleColors <- labels2colors(bwnet$colors)
+MEs <- orderMEs(bwnet$MEs)
+moduleTraitCor <- cor(MEs, traitData, use = "pairwise.complete.obs")
+moduleTraitPvalue <- corPvalueStudent(moduleTraitCor, nrow(filtered_data))
+```
+
+## Plot heatmap
+```{r}
+labeledHeatmap(
+  Matrix = moduleTraitCor,
+  xLabels = names(traitData),
+  yLabels = names(MEs),
+  colors = blueWhiteRed(50),
+  main = "Module–Trait Relationships"
+)
+```
+
+# 6. Hub Gene Identification
+```{r}
+geneModuleMembership <- cor(filtered_data, MEs, use = "p")
+module <- "pink"
+moduleGenes <- moduleColors == module
+kME <- geneModuleMembership[moduleGenes, paste0("ME", module)]
+hubGenes <- rownames(kME)[order(kME, decreasing = TRUE)]
+topHubGenes <- hubGenes[1:10]
+```
+
+# 7. Export to Cytoscape
+```{r}
+TOM <- TOMsimilarityFromExpr(filtered_data[, moduleGenes], power = 12)
+probes <- colnames(filtered_data)[moduleGenes]
+dimnames(TOM) <- list(probes, probes)
+exportNetworkToCytoscape(
+  TOM,
+  edgeFile = paste0("Cytoscape_edges_", module, ".txt"),
+  nodeFile = paste0("Cytoscape_nodes_", module, ".txt"),
+  weighted = TRUE,
+  threshold = 0.02
+)
+```
+
+# 8. EWCE: Cell-type Enrichment
+```{r}
+ctd <- ewceData::ctd()
+moduleGenesList <- probes
+pink_results <- bootstrap_enrichment_test(
+  sct_data = ctd,
+  hits = moduleGenesList,
+  genelistSpecies = "mouse",
+  sctSpecies = "mouse",
+  reps = 1000,
+  no_cores = 2,
+  annotLevel = 2
+)
+```
+
+# 9. EWCE Results Plot
+```{r}
+EWCE::ewce_plot(
+  total_res = pink_results$results,
+  mtc_method = "BH"
+)
+```

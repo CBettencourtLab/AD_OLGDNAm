@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 # Introduction
-This R Markdown document provides a workflow for performing Weighted Gene Co-expression Network Analysis (WGCNA), module–trait correlations, hub gene identification, and EWCE cell-type enrichment. 
+This R Markdown document provides a workflow for performing Weighted Gene Co-expression Network Analysis (WGCNA), module–trait correlations, EWCE cell-type enrichment and hub gene identification. 
 
 # Load Required Packages
 ```{r}

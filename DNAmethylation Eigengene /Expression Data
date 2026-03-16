@@ -1,0 +1,89 @@
+
+```{r}
+
+library(readr)
+
+# Read in the file
+gene_counts <- read in file 
+```
+```{r}
+gene_counts <- as.data.frame(gene_counts)
+rownames(gene_counts) <- gene_counts$feature
+gene_counts <- gene_counts[,-c(1)]
+```
+
+```{r}
+meta_data <- merge(ROSMAP_biospecimen_metadata, ROSMAP_clinical, by =c("individualID"))
+meta_data <- merge(meta_data, ROSMAP_assay_rnaSeq_metadat, by = c("specimenID"))
+meta_data <- subset(meta_data, assay == "rnaSeq")
+meta_data <- subset(meta_data, tissue == "dorsolateral prefrontal cortex")
+
+samples <- meta_data$specimenID
+samples0 <- colnames(gene_counts)
+samples_to_keep <- intersect(samples, samples0)
+
+
+```
+
+```{r}
+meta_data <- subset(meta_data, specimenID %in% samples_to_keep)
+gene_counts0 <- gene_counts[, samples_to_keep]
+```
+
+```{r}
+
+
+```
+
+
+```{r}
+colData <- meta_data
+rownames(colData) <- colData$specimenID
+
+colData$Sample_group <- paste("CTRL")
+colData$ceradsc <- as.character(colData$ceradsc)
+
+for (i in 1:nrow(colData)){
+  print(i)
+  if(colData$ceradsc[i] == "1"){
+    colData$Sample_group[i] <- paste("AD")
+  }
+  else if(colData$ceradsc[i] == "2"){
+    colData$Sample_group[i] <- paste("AD")
+  }
+}
+
+counts <- as.matrix(gene_counts0)
+
+d0 <- DGEList(counts)
+d0 <- calcNormFactors(d0)
+cutoff <- 1
+drop <- which(apply(cpm(d0), 1, max) < cutoff)
+d <- d0[-drop,]
+dim(d) # number of genes left
+
+
+# Keep only samples with complete covariate data
+keep <- complete.cases(colData[, c("RIN", "Sample_group", "msex")])
+colData_clean <- colData[keep, ]
+d_clean <- d[, keep]
+
+# Rebuild design matrix
+rin <- as.numeric(colData_clean$RIN)
+group <- as.factor(colData_clean$Sample_group)
+sex <- as.factor(colData_clean$msex)
+
+mm <- model.matrix(~0 + group + sex + rin)
+
+# Now voom should work
+y <- voom(d_clean, mm, plot = TRUE)
+
+
+fit <- lmFit(y, mm)
+head(coef(fit))
+
+yAdj.fit    <- fit$coefficients[,-c(1:2)]
+
+yAdj        <- as.matrix(y) - yAdj.fit %*% t(mm[,-c(1:2)])
+```
+

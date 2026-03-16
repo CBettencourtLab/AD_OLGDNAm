@@ -67,41 +67,8 @@ DLPFC_samples <- DLPFC_samples0
 Sample_group <- factor(DLPFC_samples$Sample_Group, levels=c("Control","Alzheimer"))
 ```
 
-```{r Removing age associated probes}
 
-age <- as.numeric(DLPFC_samples$Age)
-
-design_DLPFCage <- model.matrix(~age, data=DLPFC_samples)
-dim(design_DLPFCage)
-
-fit_DLPFCage = lmFit(M_matrix_DLPFC,design_DLPFCage)
-
-contMatrix_age <-  makeContrasts("age", levels = design_DLPFCage)
-
-fit2_age <- contrasts.fit(fit_DLPFCage, contMatrix_age)
-fit3_age <- eBayes(fit2_age)
-
-summary(decideTests(fit3_age, adjust.method = "fdr", p.value = 0.01))
-
-####DMPs ###
-data(probe.features.epic)
-probe.genes<-subset(probe.features, probe.features$feature!="IGR")
-dim(probe.genes)
-load("Z:/Sao_for_Preservation/PSPnetworks/annot.RData")
-annSub <- annot[match(rownames(M_matrix_DLPFC),rownames(probe.genes)),]
-
-DMPs_age <- topTable(fit3_age,  num=Inf, coef=1, genelist=annSub)
-
-
-ageProbes <- subset(DMPs_age, P.Value < 0.2)
-age_probes <- ageProbes$Probe
-
-
-#Removing the age associated probes 
-M_matrix_DLPFC_t <- as.data.frame(t(M_matrix_DLPFC))
-M_matrix_DLPFC_t = M_matrix_DLPFC_t[, !names(M_matrix_DLPFC_t) %in% age_probes]
-
-M_matrix_DLPFC_age <- as.matrix(t(M_matrix_DLPFC_t))
+M_matrix_DLPFC <- as.matrix(t(M_matrix_DLPFC_t))
 
 
 
@@ -130,17 +97,10 @@ dim(design_DLPFC)
 
 design0 <-  model.matrix(~0+neuNP+age+sex+plate, data=DLPFC_samples0)
 
-#SVA 
-
-n.sv = num.sv(M_matrix_DLPFC_age, design_DLPFC, method="leek") ##returns 2 Surrogate Variables 
-n.sv
-svobj <- sva(M_matrix_DLPFC_age, design_DLPFC, design0, n.sv=n.sv)
-
-designSv <- cbind(design_DLPFC, svobj$sv)
 
 #Fit 
 
-fit = lmFit(M_matrix_DLPFC_age, design_DLPFC)
+fit = lmFit(M_matrix_DLPFC, design_DLPFC)
 
 contMatrix <- makeContrasts(Sample_groupAlzheimer-Sample_groupControl, levels = design_DLPFC)
 
@@ -158,7 +118,7 @@ contMatrix <- makeContrasts(Sample_groupAlzheimer-Sample_groupControl, levels = 
 
 mAdj.fit_DLPFC    <- fit$coefficients[,-c(1:2)]
 
-mAdj_DLPFC        <- as.matrix(M_matrix_DLPFC_age) - mAdj.fit_DLPFC %*% t(design_DLPFC[,-c(1:2)])
+mAdj_DLPFC        <- as.matrix(M_matrix_DLPFC) - mAdj.fit_DLPFC %*% t(design_DLPFC[,-c(1:2)])
 
 bAdj_DLPFC <- m2beta(mAdj_DLPFC)
 

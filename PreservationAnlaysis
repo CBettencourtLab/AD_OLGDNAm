@@ -1,0 +1,25 @@
+#For each of the three DNA methylation brain regions, we carried out preservation analysis against the other brain regions, and 5 additional complementary DMA methylation datasets; AD, FTLD (3) and movement disorders. For details please see https://www.biorxiv.org/content/10.1101/2025.08.28.672821v2 
+
+
+# Order the rows of geneInfo so that they match those of datExpr_PSP:
+Genes_ERC/DLPFC/HIPPO = colnames(datExpr_ERC/DLPFC/HIPPO)
+Geneinforows_ERC/DLPFC/HIPPO = match(Genes_ERC/DLPFC/HIPPO, geneInfo_ERC/DLPFC/HIPPO$Probes)
+
+
+# This module assignment was obtained by Ghazalpour et al
+colors_ERC/DLPFC/HIPPO= GeneInfo_ERC/DLPFC/HIPPO$moduleColor
+####### matrix for module preservation analysis #########
+
+setLabels = c("ERC/DLPFC/HIPPO", "Test_data");
+multiExpr = list(ERC/DLPFC/HIPPO= list(data = datExpr_ERC/DLPFC/HIPPO), DLPFC = list(data = t(mAdj_Test_data)));
+
+multiColor = list(ERC/DLPFC/HIPPO = colors_ERC/DLPFC/HIPPO);
+
+system.time( {
+  mp_ERC/DLPFC/HIPPOvsTest_data= modulePreservation(multiExpr, multiColor,
+                                      referenceNetworks = 1,
+                                      nPermutations = 200,
+                                      randomSeed = 1,
+                                      quickCor = 0,
+                                      verbose = 3, maxModuleSize=7000)
+} );
